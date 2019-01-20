@@ -1,6 +1,7 @@
 package com.example.amankumarmishra.qrcode1;
 
 import android.app.Activity;
+import android.app.ProgressDialog;
 import android.content.Intent;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
@@ -9,6 +10,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.tasks.OnCompleteListener;
@@ -30,6 +32,7 @@ public class MainActivity extends AppCompatActivity {
    String value;
     Button gen, submit;
     EditText sapidInputEdiText , scoreInputEditText;
+    TextView enterScoreManuallyTextView,orTextView;
     FirebaseDatabase database = FirebaseDatabase.getInstance();
     DatabaseReference myRef = database.getReference();
     User user;
@@ -43,16 +46,9 @@ public class MainActivity extends AppCompatActivity {
         sapidInputEdiText.setText("5000");
         scoreInputEditText = findViewById(R.id.scoreInput);
         submit= (Button)findViewById(R.id.submit);
-
+        enterScoreManuallyTextView=findViewById(R.id.enterscoremanually);
+        orTextView=findViewById(R.id.ortextview);
         mAuth= FirebaseAuth.getInstance();
-      /*  @Override
-        public void onStart() {
-            super.onStart();
-            // Check if user is signed in (non-null) and update UI accordingly.
-            FirebaseUser currentUser = mAuth.getCurrentUser();
-            updateUI(currentUser);
-        }*/
-
         mAuth.signInAnonymously()
                 .addOnCompleteListener(this, new OnCompleteListener<AuthResult>() {
                     @Override
@@ -67,7 +63,6 @@ public class MainActivity extends AppCompatActivity {
                            // Log.w(TAG, "signInAnonymously:failure", task.getException());
                             Toast.makeText(MainActivity.this, "Authentication failed.",
                                     Toast.LENGTH_SHORT).show();
-                           updateUI(null);
                         }
                     }
                 });
@@ -75,44 +70,29 @@ public class MainActivity extends AppCompatActivity {
 
     public void updateUI(FirebaseUser u){
         //Qr code scanner functionality
-        gen = (Button) findViewById(R.id.gen);
-        scan = (Button) findViewById(R.id.scan);
-        gen.setVisibility(View.GONE);
-        scan.setVisibility(View.GONE);
-        gen.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Intent gIntent = new Intent(MainActivity.this, GeneratorActivity.class);
-                startActivity(gIntent);
-            }
-        });
-        final Activity activity = this;
-        scan.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                IntentIntegrator integrator = new IntentIntegrator(activity);
-                integrator.setDesiredBarcodeFormats(IntentIntegrator.QR_CODE_TYPES);
-                integrator.setPrompt("Scan");
-
-                integrator.setCameraId(0);
-                integrator.setBeepEnabled(true);
-                integrator.setBarcodeImageEnabled(false);
-                integrator.initiateScan();
-                }
-        });
-
         submit.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 final String sap = sapidInputEdiText.getText().toString();
                 //imp to get thi text inside the onClick listener otherwise it wont take the value that the user enters just before clicking
                 //the button.
-
                 //checking if sap correct
                 if (sap.equals("5000") || sap.equals("") || sap.length() != 9 || sap.indexOf("5000") != 0) {
-                    Toast.makeText(activity, "Enter correct sap id", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(MainActivity.this, "Enter correct sap id", Toast.LENGTH_SHORT).show();
                     return;
                 }
+                //check if NOT scanned through QR CODE
+                if(value==null||value.equals("")){
+                    value = scoreInputEditText.getText().toString(); //taking input from edittext
+                    //CHECK IF ENTERED VALUE MANUALLY
+                    if(value.equals(""))
+                    {
+                        Toast.makeText(MainActivity.this, "Enter Score First", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                }
+
+
                 //single event listener added and not the normal one because when "updating" value in db, whenever value gets "updated"
                 //onDataChange would be called and itll be an infinite loop.
                 myRef.addListenerForSingleValueEvent(new ValueEventListener() {
@@ -120,19 +100,35 @@ public class MainActivity extends AppCompatActivity {
                     public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
                         //making a path to go to the specific child of db that we need.
                         user = dataSnapshot.child("event_db").child("participants").child(sap).getValue(User.class);
+                        if(user==null)
+                        {
+                            Toast.makeText(MainActivity.this, "User does not exist!!", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
                         //user now contains the contents of the pojo file that we made, that we then fetched from the db. so we use
                         //getscore to only get the score.
                         count = user.getScore();
-                        value = scoreInputEditText.getText().toString(); //taking input from edittext
                         //using try in case user enters wrong value
                         try {
                             int score = Integer.parseInt(value);
                             count = count + score;
+                            //show Progress bar
+                            final ProgressDialog progressDialog=new ProgressDialog(MainActivity.this);
+                            progressDialog.setTitle("Updating");
+                            progressDialog.show();
                             myRef.child("event_db").child("participants").child(sap).child("score").setValue(count).addOnCompleteListener(new OnCompleteListener<Void>() {
                                 @Override
                                 public void onComplete(@NonNull Task<Void> task) {
                                     if (task.isSuccessful()) {
-                                        Toast.makeText(activity, "Score Updated", Toast.LENGTH_SHORT).show();
+                                        Toast.makeText(MainActivity.this, "Score Updated", Toast.LENGTH_SHORT).show();
+                                        //RESET INITIAL STATE OF APP
+                                        sapidInputEdiText.setText("5000");
+                                        scoreInputEditText.setText("");
+                                        scan.setVisibility(View.VISIBLE);
+                                        scoreInputEditText.setVisibility(View.VISIBLE);
+                                        enterScoreManuallyTextView.setVisibility(View.VISIBLE);
+                                        orTextView.setVisibility(View.VISIBLE);
+                                        progressDialog.dismiss();
                                     }
                                 }
                             });
@@ -144,6 +140,27 @@ public class MainActivity extends AppCompatActivity {
                     public void onCancelled(@NonNull DatabaseError databaseError) {
                     }
                 });
+            }
+        });
+        gen = (Button) findViewById(R.id.gen);
+        scan = (Button) findViewById(R.id.scan);
+        gen.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                Intent gIntent = new Intent(MainActivity.this, GeneratorActivity.class);
+                startActivity(gIntent);
+            }
+        });
+        scan.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                IntentIntegrator integrator = new IntentIntegrator(MainActivity.this);
+                integrator.setDesiredBarcodeFormats(IntentIntegrator.QR_CODE_TYPES);
+                integrator.setPrompt("Scan");
+                integrator.setCameraId(0);
+                integrator.setBeepEnabled(true);
+                integrator.setBarcodeImageEnabled(false);
+                integrator.initiateScan();
             }
         });
     }
@@ -158,7 +175,11 @@ public class MainActivity extends AppCompatActivity {
             }
             else {
                 value = result.getContents();
-                submit.setVisibility(View.VISIBLE);
+                //HIDE MANUALLY ENTER SCORE FUNCTIONALITY
+                scan.setVisibility(View.GONE);
+                scoreInputEditText.setVisibility(View.GONE);
+                enterScoreManuallyTextView.setVisibility(View.GONE);
+                orTextView.setVisibility(View.GONE);
             }
         }
         else {
@@ -166,3 +187,8 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 }
+
+
+
+//Added progress bar
+//User does not exist
