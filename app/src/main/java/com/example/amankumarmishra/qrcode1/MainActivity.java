@@ -29,6 +29,7 @@ import com.google.zxing.integration.android.IntentResult;
 public class MainActivity extends AppCompatActivity {
    private Button scan;
    private FirebaseAuth mAuth;
+   Button confirmPayment;
    String value;
     Button gen, submit;
     EditText sapidInputEdiText , scoreInputEditText;
@@ -42,6 +43,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        confirmPayment=findViewById(R.id.confirmPayment);
         sapidInputEdiText = findViewById(R.id.sapidInput);
         sapidInputEdiText.setText("5000");
         scoreInputEditText = findViewById(R.id.scoreInput);
@@ -49,6 +51,7 @@ public class MainActivity extends AppCompatActivity {
         enterScoreManuallyTextView=findViewById(R.id.enterscoremanually);
         orTextView=findViewById(R.id.ortextview);
         mAuth= FirebaseAuth.getInstance();
+
         mAuth.signInAnonymously()
                 .addOnCompleteListener(this, new OnCompleteListener<AuthResult>() {
                     @Override
@@ -69,6 +72,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void updateUI(FirebaseUser u){
+        confirmPayment.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent=new Intent(MainActivity.this,ConfirmActivity.class);
+                startActivity(intent);
+            }
+        });
         //Qr code scanner functionality
         submit.setOnClickListener(new View.OnClickListener() {
             @Override
